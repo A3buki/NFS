@@ -1,42 +1,25 @@
 #!/bin/bash
-
-##
-# Скрипт для сервреа NFS
-# Скрипт - создает каталог и экспортирует его
-# на клиента regul, клиент должен быть доступен
-# по сети.
-##
-
-yum install nfs-utils autofs
-
-echo sirius > /etc/hostname
-echo "192.168.10.10  sirius" >> /etc/hosts
-echo "192.168.10.11  regul" >> /etc/hosts
-
-cd /
-sudo mkdir nfsshare
-sudo chmod 777 nfsshare
-
-sudo systemctl start firewalld
-sudo firewall-cmd --permanent --add-service nfs
-sudo firewall-cmd --reload
-
+sudo yum install nfs-utils -y
+sudo yum install firewalld -y
+sudo systemctl enable rpcbind
 sudo systemctl enable nfs-server
+sudo systemctl enable firewalld
+sudo systemctl start firewalld
+sudo firewall-cmd --permanent --add-port=111/udp
+sudo firewall-cmd --permanent --add-port=2049/udp
+sudo firewall-cmd --permanent --add-port=4001/udp
+sudo firewall-cmd --permanent --zone=public --add-service=nfs
+sudo firewall-cmd --permanent --zone=public --add-service=mountd
+sudo firewall-cmd --permanent --zone=public --add-service=rpc-bind
+sudo firewall-cmd --reload
+sudo mkdir /tmp/share
+sudo mkdir /tmp/share/upload
+sudo chown -R nfsnobody:nfsnobody /tmp/share
+sudo chmod -R 777 /tmp/share
+echo -e "/tmp/share \t192.168.50.11(ro,fsid=0,sync,no_root_squash,no_subtree_check)\n/tmp/share/upload \t192.168.50.11(rw,fsid=1,sync,no_root_squash,no_subtree_check)" | sudo tee -a /etc/exports
+sudo exportfs -r
+echo -e "[exportfs]\ndebug=all\n[mountd]\ndebug=all\n[nfsd]\ndebug=all\nudp=y\ntcp=n\nvers3=y\nvers4=n\nvers4.0=n\nvers4.1=n\nvers4.2=n" | sudo tee -a /etc/nfs.conf
+sudo systemctl restart firewalld
+sudo systemctl start rpcbind
 sudo systemctl start nfs-server
-
-echo "/nfsshare    regul(rw)" > /etc/exports
-
-#Экспортируем запись на клиента Regul
-sudo exportfs -avr
-
-# Проверка экспорта:
-cat /var/lib/nfs/etab > /tmp/nfsshare.log
-
-# Создадим файл в каталоге для теста,
-# его можно будет увидеть на клиенте Regul
-cd /
-cd /nfsshare
-sudo mkdir upload
-sudo chmod 777 upload
-
-### Далее скрипт смотреть скрипт для клиента Regul.
+exit 0
